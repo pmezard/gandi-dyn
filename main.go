@@ -262,7 +262,7 @@ new zone version is created, updated with the new address and activated.
 	}
 	// TODO: remove previous version?
 	fmt.Println("zone activated")
-	return err
+	return fmt.Errorf("ip changed to %s", ip)
 }
 
 func main() {
