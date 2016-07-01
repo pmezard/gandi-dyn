@@ -1,13 +1,13 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
 	"regexp"
-	"strings"
 	"time"
 
 	"github.com/kolo/xmlrpc"
@@ -143,7 +143,7 @@ func getMyIP() (string, error) {
 	client := http.Client{
 		Timeout: 5 * time.Second,
 	}
-	rsp, err := client.Get("http://ipv4.myexternalip.com/raw")
+	rsp, err := client.Get("https://api.ipify.org?format=json")
 	if err != nil {
 		return "", err
 	}
@@ -154,11 +154,17 @@ func getMyIP() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	ip := strings.TrimSpace(string(data))
-	if !reIP.MatchString(ip) {
+	ip := struct {
+		IP string `json:"ip"`
+	}{}
+	err = json.Unmarshal(data, &ip)
+	if err != nil {
+		return "", err
+	}
+	if !reIP.MatchString(ip.IP) {
 		return "", fmt.Errorf("does not look like an IPv4: %s", ip)
 	}
-	return strings.TrimSpace(string(data)), nil
+	return ip.IP, nil
 }
 
 func updateRecords(api *GandiAPI, records []Record, zoneId, version int,
