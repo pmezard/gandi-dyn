@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"strconv"
 	"time"
 
 	"github.com/kolo/xmlrpc"
@@ -44,8 +45,15 @@ func (api *GandiAPI) GetZoneId(domain string) (int, error) {
 	return result.ZoneId, err
 }
 
+type NewRecord struct {
+	Type  string `xmlrpc:"type"`
+	Name  string `xmlrpc:"name"`
+	Value string `xmlrpc:"value"`
+	TTL   int    `xmlrpc:"ttl"`
+}
+
 type Record struct {
-	Id    int    `xmlrpc:"id"`
+	Id    string `xmlrpc:"id"`
 	Type  string `xmlrpc:"type"`
 	Name  string `xmlrpc:"name"`
 	Value string `xmlrpc:"value"`
@@ -73,28 +81,40 @@ func (api *GandiAPI) CopyZoneVersion(zoneId int) (int, error) {
 	return version, err
 }
 
-func (api *GandiAPI) DeleteRecord(zoneId, version, id int) (int, error) {
+func (api *GandiAPI) DeleteRecord(zoneId, version int, id string) (int, error) {
+	// Documentation states "id" can be int or string, but a string value fails
+	// if the related integer does not fit in 32-bits.
+	intId, err := strconv.ParseInt(id, 10, 64)
+	if err != nil {
+		return 0, err
+	}
 	args := []interface{}{
 		api.key,
 		zoneId,
 		version,
 		struct {
-			Id int `xmlrpc:"id"`
+			Id int64 `xmlrpc:"id"`
 		}{
-			Id: id,
+			Id: intId,
 		},
 	}
 	deleted := int(0)
-	err := api.client.Call("domain.zone.record.delete", args, &deleted)
+	err = api.client.Call("domain.zone.record.delete", args, &deleted)
 	return deleted, err
 }
 
 func (api *GandiAPI) AddRecord(zoneId, version int, record Record) (Record, error) {
+	r := NewRecord{
+		Type:  record.Type,
+		Name:  record.Name,
+		Value: record.Value,
+		TTL:   record.TTL,
+	}
 	args := []interface{}{
 		api.key,
 		zoneId,
 		version,
-		record,
+		r,
 	}
 	created := Record{}
 	err := api.client.Call("domain.zone.record.add", args, &created)
